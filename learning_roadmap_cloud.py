@@ -300,7 +300,8 @@ with tabs[1]:
             st.session_state.coins += sum([m1, m2, m3, m4 * 2])
             save_cloud_core_state()
             st.success("雲端大帳本已實時同步保存儲存！")
-            time.sleep(0.5) st.rerun()
+            time.sleep(0.5) 
+            st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col2:
