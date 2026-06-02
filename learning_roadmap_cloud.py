@@ -257,7 +257,7 @@ with tabs[0]:
         start_lat, start_lon = st.session_state.dino_lat, st.session_state.dino_lon
 
     bases_js_code = ""
-    for _, b_row in df_active_sites.iterrows():
+    for _, b_row in df_sites.iterrows():
         bases_js_code += f"L.marker([{b_row['latitude']}, {b_row['longitude']}], {{icon: baseIcon}}).addTo(map);\n"
 
     leaflet_html = f"""
