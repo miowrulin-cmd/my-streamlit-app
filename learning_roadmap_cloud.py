@@ -81,7 +81,7 @@ if 'logged_in' not in st.session_state:
 
 if not st.session_state.logged_in:
     st.title("🦖 夢想航線：身分驗證控制艙")
-    st.write("請輸入特派員或指揮官通行碼以對接雲端大帳本：")
+    st.write("請輸入特派員或指揮官通行碼以對接雲端大帳本：")0
     
     col_l1, col_l2 = st.columns(2)
     with col_l1:
@@ -192,7 +192,8 @@ if current_unlocked_count > st.session_state.previous_unlocked_count:
 # *. 200% 滿版炫彩通關面板 (動態結界)
 # ==========================================
 if st.session_state.just_unlocked:
-    st.balloons() st.snow()
+    st.balloons() 
+    st.snow()
     st.markdown(f"""
     <div class="epic-congratulations">
         <h1 style="color: #dc3545; font-size: 64px; font-weight: 900; margin: 0; text-shadow: 3px 3px #fff; font-family:'Comic Sans MS';">🎉 LEVEL UP! 新基地解鎖！ 🎉</h1>
