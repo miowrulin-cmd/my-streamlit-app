@@ -91,13 +91,13 @@ if not st.session_state.logged_in:
         if st.button("🚀 驗證登入並同步雲端"):
             if username.lower() == "kelly" and password == "2auidrji":
                 st.session_state.logged_in = True
-                st.session_state.role = "mom"
+                st.session_state.role = "Kelly"
                 st.success("指揮官Kelly登入成功！正在接續全權限控制台...")
                 time.sleep(1)
                 st.rerun()
             elif username.lower() == "ailey" and password == "0410":
                 st.session_state.logged_in = True
-                st.session_state.role = "daughter"
+                st.session_state.role = "Ailey"
                 st.success("🦖 歡迎恐龍特派員 Ailey 登入！！正在同步妳的未來幣基地...")
                 time.sleep(1)
                 st.rerun()
@@ -233,8 +233,8 @@ with st.sidebar:
 # 6. 帳號權限分流管理 (Role-Based Access Control)
 # ==========================================
 # 媽媽能看到 4 個 Tabs；女兒只能看到前 3 個，從物理上閹割後台，杜絕篡改風險！
-if st.session_state.role == "mom":
-    tab_list = ["🗺️ 夢想航線大富翁地圖", "📅 今日任務與專注計時器", "📚 數位學習基地 (課程進度)", "⚙️ 媽媽後台控制面板"]
+if st.session_state.role == "Kelly":
+    tab_list = ["🗺️ 夢想航線大富翁地圖", "📅 今日任務與專注計時器", "📚 數位學習基地 (課程進度)", "⚙️ 後台控制面板"]
 else:
     tab_list = ["🗺️ 夢想航線大富翁地圖", "📅 今日任務與專注計時器", "📚 數位學習基地 (課程進度)"]
 
@@ -335,7 +335,7 @@ with tabs[2]:
 # ------------------------------------------
 # Tab 4: 媽媽後台控制面板 (已被安全保護)
 # ------------------------------------------
-if st.session_state.role == "mom":
+if st.session_state.role == "Kelly":
     with tabs[3]:
         st.subheader("⚙️ 雲端後台決策艙 (指揮官權限)")
         # 後台資料調整與表格上移/下移矩陣計算完整保留...
