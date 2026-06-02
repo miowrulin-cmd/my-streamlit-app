@@ -85,20 +85,20 @@ if not st.session_state.logged_in:
     
     col_l1, col_l2 = st.columns(2)
     with col_l1:
-        username = st.text_input("👤 使用者帳號 (媽媽請輸入 mom / 女兒請輸入 daughter)：")
+        username = st.text_input("👤 使用者帳號 (媽媽請輸入 Kelly / 女兒請輸入 Ailey)：")
         password = st.text_input("🔒 安全驗證碼：", type="password")
         
         if st.button("🚀 驗證登入並同步雲端"):
-            if username == "mom" and password == "mom123":
+            if username.lower() == "kelly" and password == "2auidrji":
                 st.session_state.logged_in = True
                 st.session_state.role = "mom"
-                st.success("指揮官媽媽登入成功！正在接續全權限控制台...")
+                st.success("指揮官Kelly登入成功！正在接續全權限控制台...")
                 time.sleep(1)
                 st.rerun()
-            elif username == "daughter" and password == "dino123":
+            elif username.lower() == "ailey" and password == "0410":
                 st.session_state.logged_in = True
                 st.session_state.role = "daughter"
-                st.success("🦖 歡迎回來！恐龍特派員！正在同步妳的未來幣基地...")
+                st.success("🦖 歡迎恐龍特派員 Ailey 登入！！正在同步妳的未來幣基地...")
                 time.sleep(1)
                 st.rerun()
             else:
