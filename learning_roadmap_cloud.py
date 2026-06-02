@@ -81,7 +81,7 @@ if 'logged_in' not in st.session_state:
 
 if not st.session_state.logged_in:
     st.title("🦖 夢想航線：身分驗證控制艙")
-    st.write("請輸入特派員或指揮官通行碼以對接雲端大帳本：")0
+    st.write("請輸入特派員或指揮官通行碼以對接雲端大帳本：")
     
     col_l1, col_l2 = st.columns(2)
     with col_l1:
