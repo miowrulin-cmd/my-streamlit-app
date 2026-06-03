@@ -65,11 +65,11 @@ audio_b64 = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # 讀取雲端資料庫 (加入 ttl=0 確保每次重整抓取最新數據，避免 iPad 與 PC 快取不同步)
-df_coins = conn.read(worksheet="coins", ttl=0)
-df_sites = conn.read(worksheet="sites", ttl=0)
-df_milestones = conn.read(worksheet="milestones", ttl=0)
-df_resources = conn.read(worksheet="resources", ttl=0)
-df_quiz = conn.read(worksheet="quiz", ttl=0)
+df_coins = conn.read(worksheet="coins", ttl=15)
+df_sites = conn.read(worksheet="sites", ttl=15)
+df_milestones = conn.read(worksheet="milestones", ttl=15)
+df_resources = conn.read(worksheet="resources", ttl=15)
+df_quiz = conn.read(worksheet="quiz", ttl=15)
 
 # 啟動時讀取狀態 (從 df_coins)
 if 'coins' not in st.session_state:
