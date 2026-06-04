@@ -17,7 +17,7 @@ WS_SITES = f"sites{SUFFIX}"
 WS_RESOURCES = f"resources{SUFFIX}"
 WS_QUIZ = f"quiz{SUFFIX}"
 WS_MILESTONES = f"milestones{SUFFIX}"
-WS_REWARDS = f"rewards{SUFFIX}" # 🎯 新增願望兌換管線
+WS_REWARDS = f"rewards{SUFFIX}" 
 
 # ==========================================
 # 1. 網頁基本設定 & 護眼暗黑模式 CSS
@@ -32,6 +32,7 @@ st.set_page_config(
 st.markdown("""
 <style>
     .coin-box { background-color: #1e293b; border-radius: 15px; padding: 15px; border: 2px dashed #f59e0b; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    .admin-box { background-color: #0f172a; border-radius: 15px; padding: 15px; border: 2px solid #10b981; text-align: center; margin-bottom: 20px; }
     .game-node-unlocked { background: linear-gradient(145deg, #1e3a8a, #172554); border: 2px solid #3b82f6; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.4); height: 100%; color: #eff6ff; }
     .game-node-locked { background: #0f172a; border: 2px dashed #475569; border-radius: 12px; padding: 15px; text-align: center; color: #94a3b8; height: 100%; }
     .resource-card { background-color: #1e293b; border-left: 5px solid #3b82f6; padding: 15px; margin-bottom: 10px; border-radius: 6px; color: #f8fafc; }
@@ -48,7 +49,26 @@ if 'audio_trigger' not in st.session_state:
     st.session_state.audio_trigger = None
 
 # ==========================================
-# 2. 雲端資料庫讀寫模組 (含自動建表防護)
+# 2. 【核心重構一】：登入守門員 (必須置於所有邏輯之前)
+# ==========================================
+if 'logged_in_user' not in st.session_state:
+    st.session_state.logged_in_user = "Ailey"
+
+# 強制在程式一開頭就將登入選擇器做出來，攔截後續的所有進度加載
+with st.sidebar:
+    st.warning(f"⚡ 目前運行模式：{ENVIRONMENT}")
+    selected_user = st.selectbox("👤 請選擇特派員帳號：", ["Ailey", "Kelly"], index=0 if st.session_state.logged_in_user == "Ailey" else 1)
+    
+    if selected_user != st.session_state.logged_in_user:
+        st.session_state.logged_in_user = selected_user
+        # 換帳號時，瞬間自我淨化記憶體，防止前一個人的資料殘留污染
+        clear_keys = ['coins', 'target_points', 'dino_lat', 'dino_lon', 'quiz_correct_total', 'daily_quiz_count', 'quiz_idx', 'daily_timer_done', 'current_map_country', 'country_unlocked_counts']
+        for k in clear_keys:
+            if k in st.session_state: del st.session_state[k]
+        st.rerun()
+
+# ==========================================
+# 3. 雲端資料庫讀寫模組 (確認登入者後才執行)
 # ==========================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -75,28 +95,24 @@ df_quiz = data_store["quiz"]
 df_milestones = data_store["milestones"]
 df_rewards = data_store["rewards"]
 
-# 👤 【新增】：帳號初始化設定
-if 'logged_in_user' not in st.session_state:
-    st.session_state.logged_in_user = "Ailey"
-
 if 'current_map_country' not in st.session_state: st.session_state.current_map_country = None
 if 'country_unlocked_counts' not in st.session_state: st.session_state.country_unlocked_counts = {}
 
-# 🎯 【架構升級】：動態計算當前登入特派員的雲端資料列索引
+# 定位目前登入特派員的雲端列索引
 user_row_idx = 0 if st.session_state.logged_in_user == "Ailey" else 1
 if not df_coins.empty and "使用者" in df_coins.columns:
     user_rows = df_coins[df_coins["使用者"] == st.session_state.logged_in_user]
     if not user_rows.empty:
         user_row_idx = user_rows.index[0]
 
-# 🎯 依據登入帳號載入獨立進度
+# 依據確認後的帳號，進行 Session State 初始化
 if 'coins' not in st.session_state:
     st.session_state.coins = int(df_coins.loc[user_row_idx, "coins"]) if not df_coins.empty and len(df_coins) > user_row_idx and "coins" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "coins"]) else 0
     st.session_state.target_points = int(df_coins.loc[user_row_idx, "target_points"]) if not df_coins.empty and len(df_coins) > user_row_idx and "target_points" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "target_points"]) else 200
     st.session_state.dino_lat = float(df_coins.loc[user_row_idx, "dino_lat"]) if not df_coins.empty and len(df_coins) > user_row_idx and "dino_lat" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "dino_lat"]) else 0.0
     st.session_state.dino_lon = float(df_coins.loc[user_row_idx, "dino_lon"]) if not df_coins.empty and len(df_coins) > user_row_idx and "dino_lon" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "dino_lon"]) else 0.0
     st.session_state.quiz_correct_total = int(df_coins.loc[user_row_idx, "quiz_correct_total"]) if not df_coins.empty and len(df_coins) > user_row_idx and "quiz_correct_total" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "quiz_correct_total"]) else 0
-    st.session_state.daily_quiz_count = int(df_coins.loc[user_row_idx, "daily_quiz_count"]) if not df_coins.empty and len(df_coins) > user_row_idx and "daily_quiz_count" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "daily_quiz_count"]) else 0
+    st.session_state.daily_quiz_count = int(df_coins.loc[user_row_idx, "daily_quiz_count"]) if not df_coins.empty and len(df_coins) > user_row_idx Glen and "daily_quiz_count" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "daily_quiz_count"]) else 0
     st.session_state.last_quiz_date = str(df_coins.loc[user_row_idx, "last_quiz_date"]) if not df_coins.empty and len(df_coins) > user_row_idx and "last_quiz_date" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "last_quiz_date"]) else time.strftime("%Y-%m-%d")
     st.session_state.quiz_idx = int(df_coins.loc[user_row_idx, "quiz_idx"]) if not df_coins.empty and len(df_coins) > user_row_idx and "quiz_idx" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "quiz_idx"]) else 0
     st.session_state.daily_timer_done = bool(df_coins.loc[user_row_idx, "daily_timer_done"]) if not df_coins.empty and len(df_coins) > user_row_idx and "daily_timer_done" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "daily_timer_done"]) else False
@@ -113,10 +129,8 @@ if st.session_state.last_quiz_date != today_str:
     for key in list(st.session_state.keys()):
         if key.startswith("task_locked_"): del st.session_state[key]
 
-# 🎯 【重要修復】：多帳號安全同步機制，防止覆蓋另一個使用者的儲存格
 def sync_to_cloud():
     global df_coins
-    # 確保資料表長度足夠支援該索引列
     while len(df_coins) <= user_row_idx:
         new_row = {col: None for col in df_coins.columns}
         df_coins = pd.concat([df_coins, pd.DataFrame([new_row])], ignore_index=True)
@@ -139,50 +153,44 @@ def sync_to_cloud():
     st.cache_data.clear()
 
 # ==========================================
-# 3. 側邊欄總主控台 (含帳號登入切換器)
+# 4. 【核心重構二】：側邊欄 UI 角色物理隔離
 # ==========================================
-badges_info = [(1000, "💎", "地球史守護者"), (700, "👑", "考古大師"), (400, "🦖", "暴龍尖牙"), (100, "🦕", "腕龍寶寶"), (10, "🥚", "恐龍蛋")]
-current_badge = next((b for b in badges_info if st.session_state.quiz_correct_total >= b[0]), None)
-badge_display = f"{current_badge[1]} {current_badge[2]}" if current_badge else "🔒 尚未解鎖徽章"
-
 with st.sidebar:
-    st.warning(f"⚡ 目前運行模式：{ENVIRONMENT}")
-    
-    # 👤 【新增】：常駐頂部的特派員登入切換功能
-    selected_user = st.selectbox("👤 切換特派員帳號：", ["Ailey", "Kelly"], index=0 if st.session_state.logged_in_user == "Ailey" else 1)
-    if selected_user != st.session_state.logged_in_user:
-        st.session_state.logged_in_user = selected_user
-        # 帳號切換時，深度重置專屬記憶體防污染
-        clear_keys = ['coins', 'target_points', 'dino_lat', 'dino_lon', 'quiz_correct_total', 'daily_quiz_count', 'quiz_idx', 'daily_timer_done', 'current_map_country', 'country_unlocked_counts']
-        for k in clear_keys:
-            if k in st.session_state: del st.session_state[k]
-        st.rerun()
-
-    st.markdown(f"## 🎒 {st.session_state.logged_in_user} 的探險裝備包")
-    
-    # 🎯 願望進度條 UI
-    target = st.session_state.target_points
-    current = st.session_state.coins
-    ratio = min(current / target, 1.0) if target > 0 else 0
-    pct = int(ratio * 100)
-    
-    # 🛡️ 完美的單行拼接防程式碼外顯技術
-    sidebar_html = (
-        "<div class='coin-box'>"
-        "<span style='font-size: 14px; font-weight: bold; color: #9ca3af;'>🪙 當前累積未來幣</span><br>"
-        f"<span style='font-size: 34px; font-weight: bold; color: #fbbf24;'>{current} 枚</span>"
-        "<hr style='border-top: 1px dashed #475569; margin: 15px 0;'>"
-        f"<p style='color: #94a3b8; font-size: 13px; margin-bottom: 2px; text-align: left;'>🎯 當前願望進度：{pct}%</p>"
-        "<div class='wish-progress-bg'>"
-        f"<div class='wish-progress-fill' style='width: {ratio*100}%;'></div>"
-        "</div>"
-        f"<p style='text-align: right; color: #fbbf24; font-size: 12px; margin-top: 2px;'>{current} / {target} 🪙</p>"
-        "<hr style='border-top: 1px dashed #475569; margin: 15px 0;'>"
-        "<span style='font-size: 14px; font-weight: bold; color: #9ca3af;'>🎖️ 當前取得徽章</span><br>"
-        f"<span style='font-size: 18px; font-weight: bold; color: #3b82f6;'>{badge_display}</span>"
-        "</div>"
-    )
-    st.markdown(sidebar_html, unsafe_allow_html=True)
+    # 依據角色，渲染完全不同的側邊欄元件
+    if st.session_state.logged_in_user == "Ailey":
+        st.markdown(f"## 🎒 {st.session_state.logged_in_user} 的探險裝備包")
+        target = st.session_state.target_points
+        current = st.session_state.coins
+        ratio = min(current / target, 1.0) if target > 0 else 0
+        pct = int(ratio * 100)
+        
+        sidebar_html = (
+            "<div class='coin-box'>"
+            "<span style='font-size: 14px; font-weight: bold; color: #9ca3af;'>🪙 當前累積未來幣</span><br>"
+            f"<span style='font-size: 34px; font-weight: bold; color: #fbbf24;'>{current} 枚</span>"
+            "<hr style='border-top: 1px dashed #475569; margin: 15px 0;'>"
+            f"<p style='color: #94a3b8; font-size: 13px; margin-bottom: 2px; text-align: left;'>🎯 當前願望進度：{pct}%</p>"
+            "<div class='wish-progress-bg'>"
+            f"<div class='wish-progress-fill' style='width: {ratio*100}%;'></div>"
+            "</div>"
+            f"<p style='text-align: right; color: #fbbf24; font-size: 12px; margin-top: 2px;'>{current} / {target} 🪙</p>"
+            "<hr style='border-top: 1px dashed #475569; margin: 15px 0;'>"
+            "<span style='font-size: 14px; font-weight: bold; color: #9ca3af;'>🎖️ 當前取得徽章</span><br>"
+            f"<span style='font-size: 18px; font-weight: bold; color: #3b82f6;'>{badge_display}</span>"
+            "</div>"
+        )
+        st.markdown(sidebar_html, unsafe_allow_html=True)
+    else:
+        # Kelly (妈妈) 專屬管理面板
+        st.markdown("## ⚙️ 管理員中控艙")
+        admin_html = (
+            "<div class='admin-box'>"
+            "<span style='font-size: 15px; font-weight: bold; color: #10b981;'>🔒 系統核心已鎖定</span><br>"
+            "<p style='color: #94a3b8; font-size: 13px; margin-top: 5px; text-align: left;'>• 目前身分：系統總監 (Kelly)</p>"
+            "<p style='color: #94a3b8; font-size: 13px; text-align: left;'>• 資料庫狀態：雙軌安全備份已就緒</p>"
+            "</div>"
+        )
+        st.markdown(admin_html, unsafe_allow_html=True)
     
     st.markdown("<div class='sync-btn-container'>", unsafe_allow_html=True)
     if st.button("☁️ 儲存並同步至雲端"):
@@ -194,9 +202,18 @@ with st.sidebar:
     selected_country = st.selectbox("🌍 任務地圖切換器：", country_options)
 
 # ==========================================
-# 4. 主畫面分頁系統
+# 5. 【核心重構三】：主畫面動態分頁管限系統
 # ==========================================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([f"🗺️ {selected_country} 大富翁", "📅 今日任務", "📚 學習基地", "🎁 願望兌換", "🦖 知識挑戰", "⚙️ 媽媽後台"])
+# 根據登入帳號，決定要生成的分頁陣列。如果是 Ailey，直接在陣列裡抽乾淨「媽媽後台」，孩子完全無感。
+if st.session_state.logged_in_user == "Kelly":
+    tab_list = [f"🗺️ {selected_country} 大富翁 (管理預覽)", "📅 今日任務", "📚 學習基地", "🎁 願望兌換", "🦖 知識挑戰", "⚙️ 媽媽後台"]
+    all_tabs = st.tabs(tab_list)
+    tab1, tab2, tab3, tab4, tab5, tab6 = all_tabs
+else:
+    tab_list = [f"🗺️ {selected_country} 大富翁", "📅 今日任務", "📚 學習基地", "🎁 願望兌換", "🦖 知識挑戰"]
+    all_tabs = st.tabs(tab_list)
+    tab1, tab2, tab3, tab4, tab5 = all_tabs
+    tab6 = None # Ailey 登入時，後台物件徹底為 None
 
 # ------------------------------------------
 # Tab 1: 大富翁
@@ -302,7 +319,6 @@ with tab1:
         </svg>
         """
         
-        # 🎯 【圖層修正】：藍點縮小 50%，甲龍加入 zIndexOffset: 1000 絕對置頂
         leaflet_html = f"""
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -498,37 +514,40 @@ with tab5:
         else: st.success("🏆 全數通關！請通知媽媽擴充題目吧！")
 
 # ------------------------------------------
-# Tab 6: 媽媽後台
+# Tab 6: 媽媽後台 (動機權限隔離執行體)
 # ------------------------------------------
-with tab6:
-    input_coins = st.number_input("手動調節未來幣：", min_value=0, value=st.session_state.coins, step=1)
-    if input_coins != st.session_state.coins:
-        st.session_state.coins = input_coins; sync_to_cloud(); st.toast(f"幣值已更新！", icon="☁️")
+if tab6 is not None:
+    with tab6:
+        input_coins = st.number_input("手動調節未來幣：", min_value=0, value=st.session_state.coins, step=1)
+        if input_coins != st.session_state.coins:
+            st.session_state.coins = input_coins; sync_to_cloud(); st.toast(f"幣值已更新！", icon="☁️")
+            
+        st.markdown("---")
+        st.markdown("### 🎁 雲端願望兌換所編輯器 (rewards)")
+        edited_rewards_df = st.data_editor(df_rewards, use_container_width=True, num_rows="dynamic", key="rewards_editor")
+        if st.button("💾 儲存並覆寫願望清單"): conn.update(worksheet=WS_REWARDS, data=edited_rewards_df); st.cache_data.clear(); st.toast("🎉 願望清單已建立/覆寫！", icon="✅")
+
+        st.markdown("---")
+        st.markdown("### 🗺️ 雲端地圖站點編輯器 (sites)")
+        edited_sites_df = st.data_editor(df_sites, use_container_width=True, num_rows="dynamic", key="sites_editor")
+        if st.button("💾 儲存並覆寫站點"): conn.update(worksheet=WS_SITES, data=edited_sites_df); st.cache_data.clear(); st.toast("🎉 站點已覆寫！", icon="✅")
+
+        st.markdown("### 📚 雲端學習資源編輯器 (resources)")
+        edited_resources_df = st.data_editor(df_resources, use_container_width=True, num_rows="dynamic", key="resources_editor")
+        if st.button("💾 儲存並覆寫資源"): conn.update(worksheet=WS_RESOURCES, data=edited_resources_df); st.cache_data.clear(); st.toast("🎉 資源已覆寫！", icon="✅")
         
-    st.markdown("---")
-    st.markdown("### 🎁 雲端願望兌換所編輯器 (rewards)")
-    edited_rewards_df = st.data_editor(df_rewards, use_container_width=True, num_rows="dynamic", key="rewards_editor")
-    if st.button("💾 儲存並覆寫願望清單"): conn.update(worksheet=WS_REWARDS, data=edited_rewards_df); st.cache_data.clear(); st.toast("🎉 願望清單已建立/覆寫！", icon="✅")
+        st.markdown("---")
+        st.markdown("### 🏆 雲端里程碑即時編輯器 (milestones)")
+        edited_milestones_df = st.data_editor(df_milestones, use_container_width=True, num_rows="dynamic", key="milestones_editor")
+        if st.button("💾 儲存並覆寫里程碑"): conn.update(worksheet=WS_MILESTONES, data=edited_milestones_df); st.cache_data.clear(); st.toast("🎉 里程碑已覆寫！", icon="✅")
 
-    st.markdown("---")
-    st.markdown("### 🗺️ 雲端地圖站點編輯器 (sites)")
-    edited_sites_df = st.data_editor(df_sites, use_container_width=True, num_rows="dynamic", key="sites_editor")
-    if st.button("💾 儲存並覆寫站點"): conn.update(worksheet=WS_SITES, data=edited_sites_df); st.cache_data.clear(); st.toast("🎉 站點已覆寫！", icon="✅")
-
-    st.markdown("### 📚 雲端學習資源編輯器 (resources)")
-    edited_resources_df = st.data_editor(df_resources, use_container_width=True, num_rows="dynamic", key="resources_editor")
-    if st.button("💾 儲存並覆寫資源"): conn.update(worksheet=WS_RESOURCES, data=edited_resources_df); st.cache_data.clear(); st.toast("🎉 資源已覆寫！", icon="✅")
-    
-    st.markdown("### 🏆 雲端里程碑即時編輯器 (milestones)")
-    edited_milestones_df = st.data_editor(df_milestones, use_container_width=True, num_rows="dynamic", key="milestones_editor")
-    if st.button("💾 儲存並覆寫里程碑"): conn.update(worksheet=WS_MILESTONES, data=edited_milestones_df); st.cache_data.clear(); st.toast("🎉 里程碑已覆寫！", icon="✅")
-
-    st.markdown("### 🦖 雲端雙語題庫即時編輯器 (quiz)")
-    edited_quiz_df = st.data_editor(df_quiz, use_container_width=True, num_rows="dynamic", key="quiz_editor")
-    if st.button("💾 儲存並覆寫題庫"): conn.update(worksheet=WS_QUIZ, data=edited_quiz_df); st.cache_data.clear(); st.toast("🎉 題庫已覆寫！", icon="✅")
+        st.markdown("---")
+        st.markdown("### 🦖 雲端雙語題庫即時編輯器 (quiz)")
+        edited_quiz_df = st.data_editor(df_quiz, use_container_width=True, num_rows="dynamic", key="quiz_editor")
+        if st.button("💾 儲存並覆寫題庫"): conn.update(worksheet=WS_QUIZ, data=edited_quiz_df); st.cache_data.clear(); st.toast("🎉 題庫已覆寫！", icon="✅")
 
 # ==========================================
-# 5. 音效引擎
+# 6. 音效引擎
 # ==========================================
 @st.cache_data
 def load_audio_b64(file_name):
