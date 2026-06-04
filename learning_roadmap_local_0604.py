@@ -164,6 +164,11 @@ with st.sidebar:
         ratio = min(current / target, 1.0) if target > 0 else 0
         pct = int(ratio * 100)
         
+        # 🎯 【修復】：將徽章計算邏輯搬移到這裡！確保進度已載入且只有 Ailey 用得到
+        badges_info = [(1000, "💎", "地球史守護者"), (700, "👑", "考古大師"), (400, "🦖", "暴龍尖牙"), (100, "🦕", "腕龍寶寶"), (10, "🥚", "恐龍蛋")]
+        current_badge = next((b for b in badges_info if st.session_state.quiz_correct_total >= b[0]), None)
+        badge_display = f"{current_badge[1]} {current_badge[2]}" if current_badge else "🔒 尚未解鎖徽章"
+        
         sidebar_html = (
             "<div class='coin-box'>"
             "<span style='font-size: 14px; font-weight: bold; color: #9ca3af;'>🪙 當前累積未來幣</span><br>"
@@ -181,7 +186,7 @@ with st.sidebar:
         )
         st.markdown(sidebar_html, unsafe_allow_html=True)
     else:
-        # Kelly (妈妈) 專屬管理面板
+        # Kelly (媽媽) 專屬管理面板
         st.markdown("## ⚙️ 管理員中控艙")
         admin_html = (
             "<div class='admin-box'>"
