@@ -129,23 +129,23 @@ with st.sidebar:
     ratio = min(current / target, 1.0) if target > 0 else 0
     pct = int(ratio * 100)
     
-    st.markdown(f"""
-    <div class="coin-box">
-        <span style='font-size: 14px; font-weight: bold; color: #9ca3af;'>🪙 當前累積未來幣</span><br>
-        <span style='font-size: 34px; font-weight: bold; color: #fbbf24;'>{current} 枚</span>
-        
-        <hr style='border-top: 1px dashed #475569; margin: 15px 0;'>
-        <p style="color: #94a3b8; font-size: 13px; margin-bottom: 2px; text-align: left;">🎯 當前願望進度：{pct}%</p>
-        <div class="wish-progress-bg">
-            <div class="wish-progress-fill" style="width: {ratio*100}%;"></div>
-        </div>
-        <p style="text-align: right; color: #fbbf24; font-size: 12px; margin-top: 2px;">{current} / {target} 🪙</p>
-        
-        <hr style='border-top: 1px dashed #475569; margin: 15px 0;'>
-        <span style='font-size: 14px; font-weight: bold; color: #9ca3af;'>🎖️ 當前取得徽章</span><br>
-        <span style='font-size: 18px; font-weight: bold; color: #3b82f6;'>{badge_display}</span>
-    </div>
-    """, unsafe_allow_html=True)
+    # 🛡️ 【終極防護版】：使用字串拼接，徹底免疫編輯器的自動縮排與隱藏空白
+    sidebar_html = (
+        "<div class='coin-box'>"
+        "<span style='font-size: 14px; font-weight: bold; color: #9ca3af;'>🪙 當前累積未來幣</span><br>"
+        f"<span style='font-size: 34px; font-weight: bold; color: #fbbf24;'>{current} 枚</span>"
+        "<hr style='border-top: 1px dashed #475569; margin: 15px 0;'>"
+        f"<p style='color: #94a3b8; font-size: 13px; margin-bottom: 2px; text-align: left;'>🎯 當前願望進度：{pct}%</p>"
+        "<div class='wish-progress-bg'>"
+        f"<div class='wish-progress-fill' style='width: {ratio*100}%;'></div>"
+        "</div>"
+        f"<p style='text-align: right; color: #fbbf24; font-size: 12px; margin-top: 2px;'>{current} / {target} 🪙</p>"
+        "<hr style='border-top: 1px dashed #475569; margin: 15px 0;'>"
+        "<span style='font-size: 14px; font-weight: bold; color: #9ca3af;'>🎖️ 當前取得徽章</span><br>"
+        f"<span style='font-size: 18px; font-weight: bold; color: #3b82f6;'>{badge_display}</span>"
+        "</div>"
+    )
+    st.markdown(sidebar_html, unsafe_allow_html=True)
     
     st.markdown("<div class='sync-btn-container'>", unsafe_allow_html=True)
     if st.button("☁️ 儲存並同步至雲端"):
