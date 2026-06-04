@@ -61,7 +61,6 @@ def load_cloud_data_store():
         "quiz": conn.read(worksheet=WS_QUIZ, ttl=0),
         "milestones": conn.read(worksheet=WS_MILESTONES, ttl=0)
     }
-    # 防呆：如果雲端還沒有 rewards 表，系統自動給予預設值，不崩潰
     try:
         data["rewards"] = conn.read(worksheet=WS_REWARDS, ttl=0)
     except:
@@ -76,19 +75,31 @@ df_quiz = data_store["quiz"]
 df_milestones = data_store["milestones"]
 df_rewards = data_store["rewards"]
 
+# 👤 【新增】：帳號初始化設定
+if 'logged_in_user' not in st.session_state:
+    st.session_state.logged_in_user = "Ailey"
+
 if 'current_map_country' not in st.session_state: st.session_state.current_map_country = None
 if 'country_unlocked_counts' not in st.session_state: st.session_state.country_unlocked_counts = {}
 
+# 🎯 【架構升級】：動態計算當前登入特派員的雲端資料列索引
+user_row_idx = 0 if st.session_state.logged_in_user == "Ailey" else 1
+if not df_coins.empty and "使用者" in df_coins.columns:
+    user_rows = df_coins[df_coins["使用者"] == st.session_state.logged_in_user]
+    if not user_rows.empty:
+        user_row_idx = user_rows.index[0]
+
+# 🎯 依據登入帳號載入獨立進度
 if 'coins' not in st.session_state:
-    st.session_state.coins = int(df_coins.loc[0, "coins"]) if not df_coins.empty and "coins" in df_coins.columns else 0
-    st.session_state.target_points = int(df_coins.loc[0, "target_points"]) if not df_coins.empty and "target_points" in df_coins.columns else 200
-    st.session_state.dino_lat = float(df_coins.loc[0, "dino_lat"]) if not df_coins.empty and "dino_lat" in df_coins.columns else 0.0
-    st.session_state.dino_lon = float(df_coins.loc[0, "dino_lon"]) if not df_coins.empty and "dino_lon" in df_coins.columns else 0.0
-    st.session_state.quiz_correct_total = int(df_coins.loc[0, "quiz_correct_total"]) if not df_coins.empty and "quiz_correct_total" in df_coins.columns else 0
-    st.session_state.daily_quiz_count = int(df_coins.loc[0, "daily_quiz_count"]) if not df_coins.empty and "daily_quiz_count" in df_coins.columns else 0
-    st.session_state.last_quiz_date = str(df_coins.loc[0, "last_quiz_date"]) if not df_coins.empty and "last_quiz_date" in df_coins.columns else time.strftime("%Y-%m-%d")
-    st.session_state.quiz_idx = int(df_coins.loc[0, "quiz_idx"]) if not df_coins.empty and "quiz_idx" in df_coins.columns else 0
-    st.session_state.daily_timer_done = bool(df_coins.loc[0, "daily_timer_done"]) if not df_coins.empty and "daily_timer_done" in df_coins.columns else False
+    st.session_state.coins = int(df_coins.loc[user_row_idx, "coins"]) if not df_coins.empty and len(df_coins) > user_row_idx and "coins" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "coins"]) else 0
+    st.session_state.target_points = int(df_coins.loc[user_row_idx, "target_points"]) if not df_coins.empty and len(df_coins) > user_row_idx and "target_points" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "target_points"]) else 200
+    st.session_state.dino_lat = float(df_coins.loc[user_row_idx, "dino_lat"]) if not df_coins.empty and len(df_coins) > user_row_idx and "dino_lat" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "dino_lat"]) else 0.0
+    st.session_state.dino_lon = float(df_coins.loc[user_row_idx, "dino_lon"]) if not df_coins.empty and len(df_coins) > user_row_idx and "dino_lon" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "dino_lon"]) else 0.0
+    st.session_state.quiz_correct_total = int(df_coins.loc[user_row_idx, "quiz_correct_total"]) if not df_coins.empty and len(df_coins) > user_row_idx and "quiz_correct_total" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "quiz_correct_total"]) else 0
+    st.session_state.daily_quiz_count = int(df_coins.loc[user_row_idx, "daily_quiz_count"]) if not df_coins.empty and len(df_coins) > user_row_idx and "daily_quiz_count" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "daily_quiz_count"]) else 0
+    st.session_state.last_quiz_date = str(df_coins.loc[user_row_idx, "last_quiz_date"]) if not df_coins.empty and len(df_coins) > user_row_idx and "last_quiz_date" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "last_quiz_date"]) else time.strftime("%Y-%m-%d")
+    st.session_state.quiz_idx = int(df_coins.loc[user_row_idx, "quiz_idx"]) if not df_coins.empty and len(df_coins) > user_row_idx and "quiz_idx" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "quiz_idx"]) else 0
+    st.session_state.daily_timer_done = bool(df_coins.loc[user_row_idx, "daily_timer_done"]) if not df_coins.empty and len(df_coins) > user_row_idx and "daily_timer_done" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "daily_timer_done"]) else False
     st.session_state.just_unlocked = False
     st.session_state.trigger_map_animation = False
     st.session_state.completed_countries = []
@@ -102,18 +113,33 @@ if st.session_state.last_quiz_date != today_str:
     for key in list(st.session_state.keys()):
         if key.startswith("task_locked_"): del st.session_state[key]
 
+# 🎯 【重要修復】：多帳號安全同步機制，防止覆蓋另一個使用者的儲存格
 def sync_to_cloud():
-    state_df = pd.DataFrame([{
-        "coins": st.session_state.coins, "previous_count": 0, "target_points": st.session_state.target_points,
-        "dino_lat": st.session_state.dino_lat, "dino_lon": st.session_state.dino_lon,
-        "quiz_correct_total": st.session_state.quiz_correct_total, "daily_quiz_count": st.session_state.daily_quiz_count,
-        "last_quiz_date": st.session_state.last_quiz_date, "quiz_idx": st.session_state.quiz_idx, "daily_timer_done": st.session_state.daily_timer_done
-    }])
-    conn.update(worksheet=WS_COINS, data=state_df)
+    global df_coins
+    # 確保資料表長度足夠支援該索引列
+    while len(df_coins) <= user_row_idx:
+        new_row = {col: None for col in df_coins.columns}
+        df_coins = pd.concat([df_coins, pd.DataFrame([new_row])], ignore_index=True)
+        
+    if "使用者" in df_coins.columns:
+        df_coins.loc[user_row_idx, "使用者"] = st.session_state.logged_in_user
+        
+    df_coins.loc[user_row_idx, "coins"] = st.session_state.coins
+    df_coins.loc[user_row_idx, "previous_count"] = 0
+    df_coins.loc[user_row_idx, "target_points"] = st.session_state.target_points
+    df_coins.loc[user_row_idx, "dino_lat"] = st.session_state.dino_lat
+    df_coins.loc[user_row_idx, "dino_lon"] = st.session_state.dino_lon
+    df_coins.loc[user_row_idx, "quiz_correct_total"] = st.session_state.quiz_correct_total
+    df_coins.loc[user_row_idx, "daily_quiz_count"] = st.session_state.daily_quiz_count
+    df_coins.loc[user_row_idx, "last_quiz_date"] = st.session_state.last_quiz_date
+    df_coins.loc[user_row_idx, "quiz_idx"] = st.session_state.quiz_idx
+    df_coins.loc[user_row_idx, "daily_timer_done"] = st.session_state.daily_timer_done
+
+    conn.update(worksheet=WS_COINS, data=df_coins)
     st.cache_data.clear()
 
 # ==========================================
-# 3. 側邊欄總主控台 (含願望進度條)
+# 3. 側邊欄總主控台 (含帳號登入切換器)
 # ==========================================
 badges_info = [(1000, "💎", "地球史守護者"), (700, "👑", "考古大師"), (400, "🦖", "暴龍尖牙"), (100, "🦕", "腕龍寶寶"), (10, "🥚", "恐龍蛋")]
 current_badge = next((b for b in badges_info if st.session_state.quiz_correct_total >= b[0]), None)
@@ -121,7 +147,18 @@ badge_display = f"{current_badge[1]} {current_badge[2]}" if current_badge else "
 
 with st.sidebar:
     st.warning(f"⚡ 目前運行模式：{ENVIRONMENT}")
-    st.markdown("## 🎒 我的探險裝備包")
+    
+    # 👤 【新增】：常駐頂部的特派員登入切換功能
+    selected_user = st.selectbox("👤 切換特派員帳號：", ["Ailey", "Kelly"], index=0 if st.session_state.logged_in_user == "Ailey" else 1)
+    if selected_user != st.session_state.logged_in_user:
+        st.session_state.logged_in_user = selected_user
+        # 帳號切換時，深度重置專屬記憶體防污染
+        clear_keys = ['coins', 'target_points', 'dino_lat', 'dino_lon', 'quiz_correct_total', 'daily_quiz_count', 'quiz_idx', 'daily_timer_done', 'current_map_country', 'country_unlocked_counts']
+        for k in clear_keys:
+            if k in st.session_state: del st.session_state[k]
+        st.rerun()
+
+    st.markdown(f"## 🎒 {st.session_state.logged_in_user} 的探險裝備包")
     
     # 🎯 願望進度條 UI
     target = st.session_state.target_points
@@ -129,7 +166,7 @@ with st.sidebar:
     ratio = min(current / target, 1.0) if target > 0 else 0
     pct = int(ratio * 100)
     
-    # 🛡️ 【終極防護版】：使用字串拼接，徹底免疫編輯器的自動縮排與隱藏空白
+    # 🛡️ 完美的單行拼接防程式碼外顯技術
     sidebar_html = (
         "<div class='coin-box'>"
         "<span style='font-size: 14px; font-weight: bold; color: #9ca3af;'>🪙 當前累積未來幣</span><br>"
@@ -157,12 +194,12 @@ with st.sidebar:
     selected_country = st.selectbox("🌍 任務地圖切換器：", country_options)
 
 # ==========================================
-# 4. 主畫面分頁系統 (新增願望兌換所)
+# 4. 主畫面分頁系統
 # ==========================================
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([f"🗺️ {selected_country} 大富翁", "📅 今日任務", "📚 學習基地", "🎁 願望兌換", "🦖 知識挑戰", "⚙️ 媽媽後台"])
 
 # ------------------------------------------
-# Tab 1: 大富翁 (圖層與圖示修正版)
+# Tab 1: 大富翁
 # ------------------------------------------
 with tab1:
     st.markdown("""
@@ -276,7 +313,6 @@ with tab1:
             var map = L.map('map', {{ zoomControl: false }}).setView([sLat, sLon], 7);
             L.tileLayer('https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png').addTo(map);
             
-            // 藍點縮小為 13px
             var baseIcon = L.divIcon({{ html: '<div style=\"font-size: 13px; line-height: 1;\">🔵</div>', className: 'custom-base-marker', iconSize: [13, 13], iconAnchor: [6.5, 6.5] }});
             {bases_js_code}
             
@@ -286,12 +322,10 @@ with tab1:
             if(unlockedCoords.length > 0) {{ L.polyline(unlockedCoords, {{color: '#3b82f6', weight: 5}}).addTo(map); }}
 
             var ankyloIcon = L.divIcon({{ html: `{cute_ankylosaurus_svg}`, className: 'custom-dino-layer', iconSize: [90, 45], iconAnchor: [45, 22] }});
-            
-            // 甲龍強制置頂 (zIndexOffset: 1000)
             var dinoMarker = L.marker([sLat, sLon], {{icon: ankyloIcon, zIndexOffset: 1000}}).addTo(map);
             
             if ({is_animated_js}) {{
-                setTimeout(function() {{ dinoMarker.setLatLng([eLat, eLon]); map.flyTo([eLat, eLon], 6, {{duration: 2.0}}); }}, 500);
+                setTimeout(function() {{ dinoMarker.setLatLng([eLat, eLon]); map.flyTo([eLat, eLon], 6, {{duration: 2.0}}); }}, 800);
             }} else {{
                 dinoMarker.setLatLng([eLat, eLon]); map.setView([eLat, eLon], 6);
             }}
@@ -378,7 +412,7 @@ with tab3:
             st.markdown("---")
 
 # ------------------------------------------
-# Tab 4: 🎁 願望兌換 (動機閉環系統)
+# Tab 4: 🎁 願望兌換
 # ------------------------------------------
 with tab4:
     st.markdown("## 🎁 願望兌換所")
@@ -399,7 +433,6 @@ with tab4:
                 
                 col_btn1, col_btn2 = st.columns(2)
                 
-                # 鎖定目標邏輯
                 with col_btn1:
                     if st.session_state.target_points == r_cost:
                         st.button("✅ 已鎖定此目標", key=f"lock_{idx}", disabled=True)
@@ -409,13 +442,12 @@ with tab4:
                             sync_to_cloud()
                             st.rerun()
                             
-                # 兌換邏輯 (扣除金幣並重置目標)
                 with col_btn2:
                     if st.session_state.target_points == r_cost:
                         if st.session_state.coins >= r_cost:
                             if st.button(f"🎉 立即花費 {r_cost} 幣兌換！", key=f"redeem_{idx}"):
                                 st.session_state.coins -= r_cost
-                                st.session_state.target_points = 200 # 兌換後重置為預設目標
+                                st.session_state.target_points = 200 
                                 st.session_state.audio_trigger = 'level_up'
                                 sync_to_cloud()
                                 st.balloons()
@@ -466,7 +498,7 @@ with tab5:
         else: st.success("🏆 全數通關！請通知媽媽擴充題目吧！")
 
 # ------------------------------------------
-# Tab 6: 媽媽後台 (新增自動建表功能)
+# Tab 6: 媽媽後台
 # ------------------------------------------
 with tab6:
     input_coins = st.number_input("手動調節未來幣：", min_value=0, value=st.session_state.coins, step=1)
@@ -474,10 +506,7 @@ with tab6:
         st.session_state.coins = input_coins; sync_to_cloud(); st.toast(f"幣值已更新！", icon="☁️")
         
     st.markdown("---")
-    
-    # 🎯 【自動建表黑科技】：在這裡存檔，Python 會自動在雲端建立 rewards 工作表！
     st.markdown("### 🎁 雲端願望兌換所編輯器 (rewards)")
-    st.info("💡 如果這是第一次使用，只要按下方的儲存，系統就會幫妳在 Google Sheets 建立這個分頁！")
     edited_rewards_df = st.data_editor(df_rewards, use_container_width=True, num_rows="dynamic", key="rewards_editor")
     if st.button("💾 儲存並覆寫願望清單"): conn.update(worksheet=WS_REWARDS, data=edited_rewards_df); st.cache_data.clear(); st.toast("🎉 願望清單已建立/覆寫！", icon="✅")
 
