@@ -20,41 +20,51 @@ WS_MILESTONES = f"milestones{SUFFIX}"
 WS_REWARDS = f"rewards{SUFFIX}" 
 
 # ==========================================
-# 1. 網頁基本設定 & 護眼暗黑模式 CSS
+# 1. 網頁基本設定 (安全防護框架)
 # ==========================================
 st.set_page_config(
-    page_title=f"🦖 恐龍特派員 ({ENVIRONMENT} 模式)",
+    page_title="🦖 澳洲恐龍特派員：夢想航線導航艙",
     page_icon="🦖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-# 🔥【特派員總部徽章注入器】：穿透 React 框架，強行將 iPad/Android 桌面圖示替換為高解析寫實甲龍
+
+# 🔥【特派員總部徽章注入器・鋼鐵防刷版】：暴力穿透動態載入延遲，確保 Safari 100% 捕獲恐龍
 import streamlit.components.v1 as components
 
 components.html("""
 <script>
-    const parentHead = window.parent.document.head;
-    const dinoIconUrl = "https://img.icons8.com/color/144/ankylosaurus.png"; // 高清寫實甲龍圖示位址
+    function injectDinoIcons() {
+        const parentDoc = window.parent.document;
+        const parentHead = parentDoc.head;
+        const dinoIconUrl = "https://img.icons8.com/color/144/ankylosaurus.png";
 
-    // 1. 鋼鐵防禦：檢查是否已經注入過，避免反覆重繪
-    if (!window.parent.document.getElementById("dino-pwa-apple")) {
-        // 注入 iOS Safari 專屬桌面圖示標籤
-        const appleLink = window.parent.document.createElement("link");
+        // 如果已經存在舊的標籤，暴力拔除它，強制重新強制重新投射
+        const oldApple = parentDoc.getElementById("dino-pwa-apple");
+        if (oldApple) oldApple.remove();
+        const oldAndroid = parentDoc.getElementById("dino-pwa-android");
+        if (oldAndroid) oldAndroid.remove();
+
+        // 重新鍛造最高優先權標籤
+        const appleLink = parentDoc.createElement("link");
         appleLink.id = "dino-pwa-apple";
         appleLink.rel = "apple-touch-icon";
         appleLink.href = dinoIconUrl;
         parentHead.appendChild(appleLink);
         
-        // 注入 Android Chrome 通用桌面圖示標籤
-        const androidLink = window.parent.document.createElement("link");
+        const androidLink = parentDoc.createElement("link");
         androidLink.id = "dino-pwa-android";
         androidLink.rel = "icon";
         androidLink.sizes = "192x192";
         androidLink.href = dinoIconUrl;
         parentHead.appendChild(androidLink);
     }
+    
+    // 雙重定時炸彈：網頁一開立刻炸一次，半秒後 Safari 穩定的時候再炸一次，確保 100% 寫入
+    injectDinoIcons();
+    setTimeout(injectDinoIcons, 500);
 </script>
-""", height=0, width=0) # 設為 0 確保完全隱形，不影響網頁排版
+""", height=0, width=0)
 
 st.markdown("""
 <style>
