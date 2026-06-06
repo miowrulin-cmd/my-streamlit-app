@@ -28,6 +28,33 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+# 🔥【特派員總部徽章注入器】：穿透 React 框架，強行將 iPad/Android 桌面圖示替換為高解析寫實甲龍
+import streamlit.components.v1 as components
+
+components.html("""
+<script>
+    const parentHead = window.parent.document.head;
+    const dinoIconUrl = "https://img.icons8.com/color/144/ankylosaurus.png"; // 高清寫實甲龍圖示位址
+
+    // 1. 鋼鐵防禦：檢查是否已經注入過，避免反覆重繪
+    if (!window.parent.document.getElementById("dino-pwa-apple")) {
+        // 注入 iOS Safari 專屬桌面圖示標籤
+        const appleLink = window.parent.document.createElement("link");
+        appleLink.id = "dino-pwa-apple";
+        appleLink.rel = "apple-touch-icon";
+        appleLink.href = dinoIconUrl;
+        parentHead.appendChild(appleLink);
+        
+        // 注入 Android Chrome 通用桌面圖示標籤
+        const androidLink = window.parent.document.createElement("link");
+        androidLink.id = "dino-pwa-android";
+        androidLink.rel = "icon";
+        androidLink.sizes = "192x192";
+        androidLink.href = dinoIconUrl;
+        parentHead.appendChild(androidLink);
+    }
+</script>
+""", height=0, width=0) # 設為 0 確保完全隱形，不影響網頁排版
 
 st.markdown("""
 <style>
