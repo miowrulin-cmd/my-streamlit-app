@@ -6,7 +6,18 @@ import base64
 from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
-# 0. 環境變數切換開關 (全自動偵測版)
+# 0. 後端：異步計時器重新導向管線監聽器 (防刷防呆)
+# ==========================================
+if st.query_params.get("magic_timer_done") == "true":
+    if 'coins' in st.session_state:
+        st.session_state.coins += 1
+        st.session_state.daily_timer_done = True
+        st.session_state.audio_trigger = 'coin'
+    st.query_params.clear()  # 瞬間抹除網址參數，防止重新整理刷幣
+    # 延遲重新載入交給後續流程處理，此處不單獨阻塞
+
+# ==========================================
+# 0.1 環境變數切換開關 (全自動偵測版)
 # ==========================================
 if os.name == 'nt': ENVIRONMENT = "DEV"
 else: ENVIRONMENT = "PROD"
@@ -20,51 +31,35 @@ WS_MILESTONES = f"milestones{SUFFIX}"
 WS_REWARDS = f"rewards{SUFFIX}" 
 
 # ==========================================
-# 1. 網頁基本設定 (強效圖示注入與防護)
+# 1. 網頁基本設定 & 護眼暗黑風格 CSS
 # ==========================================
 st.set_page_config(
-    page_title="🦖 澳洲恐龍特派員：夢想航線導航艙",
+    page_title=f"🦖 澳洲恐龍特派員 ({ENVIRONMENT} 模式)",
     page_icon="🦖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 🔥【特派員總部徽章注入器・鋼鐵防刷版】
-# 這裡使用 window.parent.document 穿透 Streamlit 的 iframe 封裝
+# 🔥【特派員總部徽章注入器・穿透 iframe 封裝版】
 import streamlit.components.v1 as components
-
 components.html("""
 <script>
     function injectDinoIcons() {
         const parentDoc = window.parent.document;
         const parentHead = parentDoc.head;
-        // 使用您指定的恐龍圖示路徑
         const dinoIconUrl = "https://img.icons8.com/color/144/ankylosaurus.png";
-
-        // 清理殘留舊檔
         const oldApple = parentDoc.getElementById("dino-pwa-apple");
         if (oldApple) oldApple.remove();
         const oldAndroid = parentDoc.getElementById("dino-pwa-android");
         if (oldAndroid) oldAndroid.remove();
-
-        // 重新注入最高優先權
         const appleLink = parentDoc.createElement("link");
-        appleLink.id = "dino-pwa-apple";
-        appleLink.rel = "apple-touch-icon";
-        appleLink.href = dinoIconUrl;
+        appleLink.id = "dino-pwa-apple"; appleLink.rel = "apple-touch-icon"; appleLink.href = dinoIconUrl;
         parentHead.appendChild(appleLink);
-        
         const androidLink = parentDoc.createElement("link");
-        androidLink.id = "dino-pwa-android";
-        androidLink.rel = "icon";
-        androidLink.sizes = "192x192";
-        androidLink.href = dinoIconUrl;
+        androidLink.id = "dino-pwa-android"; androidLink.rel = "icon"; androidLink.sizes = "192x192"; androidLink.href = dinoIconUrl;
         parentHead.appendChild(androidLink);
     }
-    
-    // 多重觸發：確保在各種加載時機都能成功穿透
-    injectDinoIcons();
-    setTimeout(injectDinoIcons, 1000); // 延遲 1 秒再執行一次，確保 DOM 穩定
+    injectDinoIcons(); setTimeout(injectDinoIcons, 1000);
 </script>
 """, height=0, width=0)
 
@@ -82,7 +77,6 @@ st.markdown("""
     .magic-timer-box { background: linear-gradient(135deg, #fef08a 0%, #fde047 100%); padding: 20px; border-radius: 15px; text-align: center; border: 3px dashed #ca8a04; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 15px; }
     .wish-progress-bg { background: #334155; border-radius: 10px; width: 100%; height: 20px; position: relative; margin: 10px 0; }
     .wish-progress-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); height: 100%; border-radius: 10px; transition: width 0.5s; }
-    .custom-dino-layer { transition: transform 2.5s ease-in-out !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -92,7 +86,7 @@ if 'just_unlocked' not in st.session_state: st.session_state.just_unlocked = Fal
 if 'trigger_map_animation' not in st.session_state: st.session_state.trigger_map_animation = False
 
 # ==========================================
-# 2. 【全新】強制安全登入防護罩
+# 2. 前端：強制安全認證大門
 # ==========================================
 USER_CREDENTIALS = {"Ailey": "0000", "Kelly": "8888"}
 
@@ -107,7 +101,7 @@ if 'is_authenticated' not in st.session_state:
     st.session_state.is_authenticated = False
 
 if not st.session_state.is_authenticated:
-    st.markdown("<h1 style='text-align: center; color: #3b82f6; margin-top: 50px;'>🦖 恐龍特派員總部 - 安全驗證</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #3b82f6; margin-top: 50px;'>🦖 澳洲恐龍特派員總部 - 安全驗證</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<div style='background-color: #1e293b; padding: 30px; border-radius: 15px; border: 2px solid #64748b; box-shadow: 0 10px 25px rgba(0,0,0,0.5);'>", unsafe_allow_html=True)
@@ -122,12 +116,22 @@ if not st.session_state.is_authenticated:
             else:
                 st.error("❌ 密碼錯誤，請重新輸入！")
         st.markdown("</div>", unsafe_allow_html=True)
-    st.stop() # ⛔ 絕對物理防禦：驗證未通過前，直接截斷程式，保護資料庫連線
+    st.stop()  # ⛔ 未驗證通過前強制斷路，不與 Google Sheets 進行連線
 
 # ==========================================
-# 3. 雲端資料庫讀寫模組 (通過驗證後才執行)
+# 3. 雲端資料庫讀寫模組 (通過驗證後才可渲染)
 # ==========================================
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# 🎯【規格升級】：只保留您指定的 6 項願望作為底層預設資產
+DEFAULT_REWARDS_ASSETS = [
+    {"獎勵名稱": "恐龍電影或紀錄片", "所需未來幣": 80},
+    {"獎勵名稱": "高雄科工館3D電影", "所需未來幣": 120},
+    {"獎勵名稱": "台南左鎮化石園區", "所需未來幣": 150},
+    {"獎勵名稱": "台中科工館恐龍展覽", "所需未來幣": 200},
+    {"獎勵名稱": "臺灣博物館土銀展示館", "所需未來幣": 300},
+    {"獎勵名稱": "基隆AR恐龍生態園區", "所需未來幣": 300}
+]
 
 @st.cache_data(ttl=600)
 def load_cloud_data_store():
@@ -138,8 +142,12 @@ def load_cloud_data_store():
         "quiz": conn.read(worksheet=WS_QUIZ, ttl=0),
         "milestones": conn.read(worksheet=WS_MILESTONES, ttl=0)
     }
-    try: data["rewards"] = conn.read(worksheet=WS_REWARDS, ttl=0)
-    except: data["rewards"] = pd.DataFrame([{"獎勵名稱": "恐龍電影或紀錄片", "所需未來幣": 80},{"獎勵名稱": "台南左鎮化石園區", "所需未來幣": 150}, {"獎勵名稱": "台中科工館恐龍展覽", "所需未來幣": 200}])
+    try:
+        data["rewards"] = conn.read(worksheet=WS_REWARDS, ttl=0)
+        if data["rewards"].empty or len(data["rewards"]) == 0:
+            data["rewards"] = pd.DataFrame(DEFAULT_REWARDS_ASSETS)
+    except:
+        data["rewards"] = pd.DataFrame(DEFAULT_REWARDS_ASSETS)
     return data
 
 data_store = load_cloud_data_store()
@@ -159,11 +167,14 @@ if not df_coins.empty and "使用者" in df_coins.columns:
     user_rows = df_coins[df_coins["使用者"] == st.session_state.logged_in_user]
     if not user_rows.empty: user_row_idx = user_rows.index[0]
 
+# 記憶體變數初始化防護
 if 'coins' not in st.session_state:
     st.session_state.coins = int(df_coins.loc[user_row_idx, "coins"]) if not df_coins.empty and len(df_coins) > user_row_idx and "coins" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "coins"]) else 0
     st.session_state.target_points = int(df_coins.loc[user_row_idx, "target_points"]) if not df_coins.empty and len(df_coins) > user_row_idx and "target_points" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "target_points"]) else 200
     st.session_state.dino_lat = float(df_coins.loc[user_row_idx, "dino_lat"]) if not df_coins.empty and len(df_coins) > user_row_idx and "dino_lat" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "dino_lat"]) else 0.0
-    st.session_state.dino_lon = float(df_coins.loc[user_row_idx, "dino_lon"]) if not df_coins.empty and len(df_coins) > user_row_idx and "dino_lon" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "dino_lon"]) else 0.0
+    st.session_state.dino_lon = float(df_coins.loc[user_row_idx, "dino_lon"]) if not df_coins.empty department else 0.0
+    if not df_coins.empty and len(df_coins) > user_row_idx and "dino_lon" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "dino_lon"]):
+        st.session_state.dino_lon = float(df_coins.loc[user_row_idx, "dino_lon"])
     st.session_state.quiz_correct_total = int(df_coins.loc[user_row_idx, "quiz_correct_total"]) if not df_coins.empty and len(df_coins) > user_row_idx and "quiz_correct_total" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "quiz_correct_total"]) else 0
     st.session_state.daily_quiz_count = int(df_coins.loc[user_row_idx, "daily_quiz_count"]) if not df_coins.empty and len(df_coins) > user_row_idx and "daily_quiz_count" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "daily_quiz_count"]) else 0
     st.session_state.last_quiz_date = str(df_coins.loc[user_row_idx, "last_quiz_date"]) if not df_coins.empty and len(df_coins) > user_row_idx and "last_quiz_date" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "last_quiz_date"]) else time.strftime("%Y-%m-%d")
@@ -201,7 +212,7 @@ def sync_to_cloud():
     st.cache_data.clear()
 
 # ==========================================
-# 4. 側邊欄 UI & 全域解鎖判定
+# 4. 側邊欄 UI & 里程碑與徽章鎖定
 # ==========================================
 badges_info = [(1000, "💎", "地球史守護者"), (700, "👑", "考古大師"), (400, "🦖", "暴龍尖牙"), (100, "🦕", "腕龍寶寶"), (10, "🥚", "恐龍蛋")]
 current_badge = next((b for b in badges_info if st.session_state.quiz_correct_total >= b[0]), None)
@@ -300,9 +311,9 @@ with st.sidebar:
         st.toast("✅ 所有進度已安全備份至 Google Sheets！", icon="☁️")
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # 🚪 安全登出按鈕
+    # 🚪 安全登出按鈕 (點擊清除快取)
     st.markdown("<div class='logout-btn-container'>", unsafe_allow_html=True)
-    if st.button("🚪 登出系統", use_container_width=True):
+    if st.button("🚪 登出特派員系統", use_container_width=True):
         st.session_state.is_authenticated = False
         st.session_state.logged_in_user = None
         clear_keys = ['coins', 'target_points', 'dino_lat', 'dino_lon', 'quiz_correct_total', 'daily_quiz_count', 'quiz_idx', 'daily_timer_done', 'current_map_country', 'country_unlocked_counts', 'just_unlocked', 'trigger_map_animation']
@@ -311,15 +322,40 @@ with st.sidebar:
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
+# 🎯【前端更新】：重塑寫實重裝甲龍 SVG，分離肢體關節並注入前後交替踏步動畫
 def generate_map_html(start_lat, start_lon, end_lat, end_lon, is_animating):
     bases_js_code = "".join([f"L.marker([{coord[0]}, {coord[1]}], {{icon: baseIcon}}).addTo(map);" for coord in unlocked_coords])
-    realistic_ankylosaurus_svg = """<svg viewBox='0 0 160 70' xmlns='http://www.w3.org/2000/svg'><path d='M 115 35 Q 140 35 150 42' fill='none' stroke='#3e421d' stroke-width='7' stroke-linecap='round'/><ellipse cx='150' cy='42' rx='9' ry='6' fill='#2c2f15'/><path d='M 45 40 L 40 60 L 50 60 Z' fill='#2c2f15'/><path d='M 85 40 L 80 60 L 90 60 Z' fill='#2c2f15'/><path d='M 55 40 L 50 65 L 60 65 Z' fill='#4b5320'/><path d='M 95 40 L 90 65 L 100 65 Z' fill='#4b5320'/><ellipse cx='75' cy='35' rx='45' ry='16' fill='#556b2f'/><path d='M 45 25 L 40 13 L 50 23 Z' fill='#8b7d6b'/><path d='M 65 20 L 62 8 L 70 20 Z' fill='#8b7d6b'/><path d='M 85 20 L 87 8 L 90 20 Z' fill='#8b7d6b'/><path d='M 105 25 L 110 14 L 107 24 Z' fill='#8b7d6b'/><circle cx='55' cy='30' r='3.5' fill='#3e421d'/><circle cx='75' cy='28' r='4.5' fill='#3e421d'/><circle cx='95' cy='30' r='3.5' fill='#3e421d'/><circle cx='65' cy='36' r='3.5' fill='#3e421d'/><circle cx='85' cy='36' r='3.5' fill='#3e421d'/><path d='M 38 35 Q 20 30 15 38 Q 20 46 38 43 Z' fill='#4b5320'/><circle cx='25' cy='35' r='1.2' fill='#000'/><polygon points='25,32 18,24 29,32' fill='#8b7d6b'/><polygon points='32,41 24,49 35,43' fill='#8b7d6b'/></svg>"""
+    
+    walk_active_class = "walk-active" if is_animating else ""
+    
+    realistic_ankylosaurus_svg = f"""
+    <svg class="{walk_active_class}" viewBox="0 0 160 80" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:100%;">
+        <style>
+            @keyframes swing-front {{ 0%, 100% {{ transform: rotate(-10deg); }} 50% {{ transform: rotate(15deg); }} }}
+            @keyframes swing-back {{ 0%, 100% {{ transform: rotate(15deg); }} 50% {{ transform: rotate(-10deg); }} }}
+            .walk-active .leg-fl {{ animation: swing-front 0.4s infinite ease-in-out; transform-origin: 52px 38px; }}
+            .walk-active .leg-fr {{ animation: swing-back 0.4s infinite ease-in-out; transform-origin: 88px 38px; }}
+            .walk-active .leg-bl {{ animation: swing-back 0.4s infinite ease-in-out; transform-origin: 42px 42px; }}
+            .walk-active .leg-br {{ animation: swing-front 0.4s infinite ease-in-out; transform-origin: 98px 42px; }}
+        </style>
+        <path class="leg-bl" d="M35 42 Q30 58 36 64 Q42 64 43 54 Z" fill="#2d3319"/>
+        <path class="leg-br" d="M92 42 Q86 58 92 64 Q98 64 99 54 Z" fill="#2d3319"/>
+        <path class="leg-fl" d="M48 38 Q42 56 48 62 Q54 62 55 50 Z" fill="#464f26"/>
+        <path class="leg-fr" d="M82 38 Q76 56 82 62 Q88 62 89 50 Z" fill="#464f26"/>
+        <path d="M15 35 C10 32 5 36 3 40 C1 44 8 46 15 42 Z" fill="#1f2210"/>
+        <path d="M15 42 Q35 42 45 38" fill="none" stroke="#353b1c" stroke-width="8" stroke-linecap="round"/>
+        <ellipse cx="70" cy="35" rx="36" ry="18" fill="#464f26"/>
+        <path d="M34 25 L24 16 L34 28 M48 20 L42 8 L50 22 M68 18 L68 4 L74 19 M88 20 L94 8 L92 22 M102 25 L112 16 L104 28" stroke="#71644d" stroke-width="3" fill="none"/>
+        <path d="M106 35 Q125 32 132 38 Q125 46 106 43 Z" fill="#353b1c"/>
+        <circle cx="124" cy="36" r="2" fill="#000"/>
+    </svg>
+    """
+    
     is_anim_str = "true" if is_animating else "false"
     
     leaflet_html = f"""
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style> .custom-dino-layer {{ transition: transform 2.5s ease-in-out !important; }} </style>
     <div id="map" style="width: 100%; height: 450px; border-radius: 15px; border: 3px solid #475569;"></div>
     <script>
         var map = L.map('map', {{ zoomControl: false }}).setView([{start_lat}, {start_lon}], 7);
@@ -354,7 +390,7 @@ if st.session_state.just_unlocked:
     st.markdown("""
     <div style="background: linear-gradient(90deg, #10b981, #059669); padding: 25px; border-radius: 12px; color: white; text-align: center; margin-bottom: 20px; box-shadow: 0 8px 15px rgba(16,185,129,0.4); border: 3px solid #34d399;">
         <h2 style="margin: 0; font-size: 36px;">🎉 金幣達標！新考古站點已解鎖！</h2>
-        <p style="margin: 10px 0 0 0; font-size: 20px; font-weight: bold;">重裝甲龍正在向新目標推進，請觀看下方行進路線：</p>
+        <p style="margin: 10px 0 0 0; font-size: 20px; font-weight: bold;">重裝甲龍肢體踏步已啟動，正在全速向新營地推進中：</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -390,9 +426,9 @@ else:
     with tab1:
         st.markdown("""
         <div style="background-color: #f0fdf4; padding: 15px; border-left: 6px solid #4ade80; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <h4 style="color: #166534; margin-top: 0;">🦕 特派員報到：重裝甲龍出動！</h4>
+            <h4 style="color: #166534; margin-top: 0;">🦕 特派員報到：寫實重裝甲龍出動！</h4>
             <p style="color: #14532d; font-size: 16px; margin-bottom: 0; font-weight: 500;">
-            準備好了嗎？帶上妳的裝備！這隻擁有超強防禦力與重型尾錘的寫實版甲龍，已經迫不及待要跟妳一起出發，探索真實的史前世界囉！
+            帶上妳的裝備！這隻加寬了防禦刺突與厚重尾槌的甲龍，現在在移動時四隻腳會前後交替擺動踏步囉！一起出發探索史前航線吧！
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -400,7 +436,7 @@ else:
         if df_country_sites.empty:
             st.error(f"⚠️ {selected_country} 尚未建立站點資料，請至媽媽後台新增吧。")
         else:
-            if st.button("🚁 手動重播：甲龍走路動畫"):
+            if st.button("🚁 手動重播：甲龍步行關節動畫"):
                 st.session_state.trigger_map_animation = True
                 st.rerun()
 
@@ -422,7 +458,7 @@ else:
             
             is_animating = st.session_state.trigger_map_animation
             html_map = generate_map_html(start_lat, start_lon, target_lat, target_lon, is_animating)
-            st.components.v1.html(html_map, height=500)
+            st.components.v1.html(leaflet_html=html_map, height=450)
             
             if st.session_state.trigger_map_animation: st.session_state.trigger_map_animation = False
 
@@ -439,97 +475,125 @@ else:
                 st.markdown("<br>", unsafe_allow_html=True)
 
     # ------------------------------------------
-    # Tab 2: 彈性今日任務 (重構版)
+    # Tab 2: 📅 今日任務 (無限次當次結算 & 純前端 JS 計時器)
     # ------------------------------------------
-    def calculate_task_rewards(task_inputs):
-        earned = 0
-        earned += task_inputs.get("t1", 0)
-        earned += task_inputs.get("t2", 0)
-        earned += task_inputs.get("t3", 0)
-        earned += (task_inputs.get("t4", 0) // 10) # 10個換1幣
-        earned += task_inputs.get("t5", 0)
-        earned += task_inputs.get("t6", 0)
-        return earned
-
     with tab2:
-        st.info("💡 貼心提示：今天沒有學習上限！每次完成任務都可以結算，結算後數量會自動歸零，等妳下一次再來挑戰！")
+        st.info("💡 貼心提示：今天不設學習上限！每次完成都可以立刻點擊結算，結算後數量將「自動歸零」，方便下一次學習繼續累積！")
         col1, col2 = st.columns([1, 1])
+        
         with col1:
-            st.markdown("### 📝 任務提交區")
+            st.markdown("### 📝 單位數量提交區")
+            # 初始化暫存控制變數
             for i in range(6):
-                if f"task_in_{i}" not in st.session_state:
-                    st.session_state[f"task_in_{i}"] = 0
+                if f"task_amt_{i}" not in st.session_state: st.session_state[f"task_amt_{i}"] = 0
 
-            t1 = st.number_input("1. App單字闖關 (每 15 分鐘 = 1 幣)", min_value=0, step=1, key="task_in_0")
-            t2 = st.number_input("2. 英文教學影片 (每 15 分鐘 = 1 幣)", min_value=0, step=1, key="task_in_1")
-            t3 = st.number_input("3. 英文教學教材+測驗 (每 1 集 = 1 幣)", min_value=0, step=1, key="task_in_2")
-            t4 = st.number_input("4. 英文認証單字表 (每背熟 10 個 = 1 幣)", min_value=0, step=10, key="task_in_3")
-            t5 = st.number_input("5. 作業或評量沒有跳題 (每 1 次 = 1 幣)", min_value=0, step=1, key="task_in_4")
-            t6 = st.number_input("6. 作業或評量全對 (每 1 次 = 1 幣)", min_value=0, step=1, key="task_in_5")
+            # 🎯【防呆升級】：限制只能使用上下箭頭增減級距數量
+            u1 = st.number_input("1. App單字闖關次數 (每 15 分鐘 = 1 幣)", min_value=0, step=1, key="task_amt_0")
+            u2 = st.number_input("2. 英文教學影片看過次數 (每 15 分鐘 = 1 幣)", min_value=0, step=1, key="task_amt_1")
+            u3 = st.number_input("3. 英文教學教材完成集數 (每 1 集 = 1 幣)", min_value=0, step=1, key="task_amt_2")
+            u4 = st.number_input("4. 英文認証單字表背熟個數 (每熟背 10 個 = 1 幣)", min_value=0, step=10, key="task_amt_3")
+            u5 = st.number_input("5. 作業或評量沒有跳題次數 (每 1 次 = 1 幣)", min_value=0, step=1, key="task_amt_4")
+            u6 = st.number_input("6. 作業或評量全對次數 (每 1 次 = 1 幣)", min_value=0, step=1, key="task_amt_5")
 
-            if st.button("✅ 立即結算本次任務"):
-                inputs = {"t1": t1, "t2": t2, "t3": t3, "t4": t4, "t5": t5, "t6": t6}
-                earned = calculate_task_rewards(inputs)
-                
+            if st.button("✅ 立即結算當次累積未來幣"):
+                earned = u1 + u2 + u3 + (u4 // 10) + u5 + u6
                 if earned > 0:
                     st.session_state.coins += earned
-                    st.session_state.audio_trigger = 'coin' 
-                    for i in range(6): st.session_state[f"task_in_{i}"] = 0
-                    
+                    st.session_state.audio_trigger = 'coin'
+                    # 瞬間歸零，釋放狀態鎖
+                    for i in range(6): st.session_state[f"task_amt_{i}"] = 0
                     sync_to_cloud()
-                    st.toast(f"🎉 結算成功！瞬間入帳 {earned} 枚未來幣！（已自動備份）", icon="🪙")
-                    time.sleep(0.8)
+                    st.toast(f"🪙 結算成功！加碼進帳 {earned} 枚未來幣！", icon="🎉")
+                    time.sleep(0.5)
                     st.rerun()
                 else:
-                    st.warning("⚠️ 妳這次還沒有輸入任何任務數量喔！")
+                    st.warning("⚠️ 妳這次尚未調整任何任務單位的個數喔！")
                     
         with col2:
             st.markdown("""
             <div class="magic-timer-box">
-                <h3 style="color: #854d0e; margin-top:0;">⏳ 魔法專注沙漏</h3>
-                <p style="color: #a16207; font-size: 15px; font-weight: bold;">啟動魔法陣！15 分鐘不分心，就能召喚出 1 枚未來幣喔！</p>
+                <h3 style="color: #854d0e; margin-top:0;">⏳ 網頁級防休眠魔法沙漏</h3>
+                <p style="color: #a16207; font-size: 14px; font-weight: bold;">內建 WakeLock 防護罩，不受螢幕保護程式阻擋！滿 15 分鐘將強制跳出原生提示視窗並播放警報！</p>
             </div>
             """, unsafe_allow_html=True)
             
             if st.session_state.daily_timer_done:
-                st.success("✅ 今天的魔法挑戰已經成功囉！")
+                st.success("✅ 今天的魔法專注挑戰已經大功告成囉！")
             else:
-                timer_placeholder = st.empty()
-                if st.button("🚀 啟動魔法沙漏"):
-                    for t in range(15*60, -1, -1):
-                        mins, secs = divmod(t, 60)
-                        timer_placeholder.markdown(f"<h2 style='text-align: center; color: #ef4444;'>⏳ 剩餘魔法時間：`{mins:02d}:{secs:02d}`</h2>", unsafe_allow_html=True)
-                        time.sleep(1)
-                    st.session_state.coins += 1
-                    st.session_state.daily_timer_done = True
-                    st.session_state.audio_trigger = 'coin'
-                    sync_to_cloud()
-                    st.success("🎉 召喚成功！獲得 1 枚未來幣！（進度已自動備份）")
-                    time.sleep(0.5); st.rerun()
+                # 🎯【硬體升級】：使用純前端 JS 定時器，調用 Wake Lock 阻止睡眠，過期強制 Native Alert 彈窗
+                js_timer_html = """
+                <div id="timer-display" style="text-align:center; font-size:42px; font-weight:bold; color:#ef4444; background:#1e293b; padding:15px; border-radius:10px; border:2px solid #ef4444;">
+                    ⏳ 魔法沙漏已就緒
+                </div>
+                <button id="start-btn" style="width:100%; margin-top:10px; font-size:20px; padding:12px; background:#ef4444; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">
+                    🚀 啟動防睡死魔法沙漏
+                </button>
+
+                <script>
+                    let lockToken = null;
+                    let clockSeconds = 15 * 60;
+                    let displayBox = document.getElementById("timer-display");
+                    let actionBtn = document.getElementById("start-btn");
+
+                    async function requestScreenLock() {
+                        try {
+                            if ('wakeLock' in navigator) {
+                                lockToken = await navigator.wakeLock.request('screen');
+                            }
+                        } catch (e) { console.log("WakeLock Lock Failed."); }
+                    }
+
+                    actionBtn.addEventListener("click", () => {
+                        actionBtn.disabled = true;
+                        actionBtn.style.background = "#475569";
+                        actionBtn.innerText = "🔒 防休眠保護中...";
+                        requestScreenLock();
+
+                        let loop = setInterval(() => {
+                            clockSeconds--;
+                            let m = Math.floor(clockSeconds / 60);
+                            let s = clockSeconds % 60;
+                            displayBox.innerText = "⏳ 剩餘 " + (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+
+                            if (clockSeconds <= 0) {
+                                clearInterval(loop);
+                                if (lockToken !== null) lockToken.release();
+                                
+                                // 原生音訊合成嗶嗶聲
+                                try {
+                                    let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                                    let osc = audioCtx.createOscillator();
+                                    osc.type = "sine"; osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                                    osc.connect(audioCtx.destination); osc.start(); setTimeout(() => osc.stop(), 1000);
+                                } catch(e){}
+
+                                // 原生系統級最高優先權強制攔截彈窗
+                                alert("⏳ 時間到了！專注完成！1 枚未來幣已成功召喚！");
+                                
+                                // 信號反向傳回後端管線
+                                const url = new URL(window.parent.location.href);
+                                url.searchParams.set("magic_timer_done", "true");
+                                window.parent.location.href = url.href;
+                            }
+                        }, 1000);
+                    });
+                </script>
+                """
+                st.components.v1.html(js_timer_html, height=160)
 
     # ------------------------------------------
-    # Tab 3: 學習基地
+    # Tab 3: 📚 學習基地
     # ------------------------------------------
     with tab3:
         if not df_resources.empty:
             for idx, row in df_resources.iterrows():
-                raw_done = row.get('已完成集數', 0)
-                raw_total = row.get('總集數', 1)
+                r_done = 0.0 if pd.isna(row.get('已完成集數')) else float(row.get('已完成集數'))
+                r_total = 1.0 if pd.isna(row.get('總集數')) else float(row.get('總集數'))
+                r_total = max(r_total, 1.0)
                 
-                r_done = 0.0 if pd.isna(raw_done) else float(raw_done)
-                r_total = 1.0 if pd.isna(raw_total) else float(raw_total)
-                r_total = max(r_total, 1.0) 
-                
-                r_cat = str(row.get('分類', '其他'))
-                r_name = str(row.get('名稱', '未命名'))
-                r_url = str(row.get('網址', '#'))
-                
-                st.markdown(f"""<div class='resource-card'><span style='font-size:12px; color:#94a3b8;'>{r_cat}</span><br><strong style='font-size:18px;'>📖 {r_name}</strong><br><a href='{r_url}' target='_blank' style='color:#60a5fa;'>🔗 官方傳送門</a></div>""", unsafe_allow_html=True)
+                st.markdown(f"<div class='resource-card'><span style='font-size:12px; color:#94a3b8;'>{str(row.get('分類','其他'))}</span><br><strong style='font-size:18px;'>📖 {str(row.get('名稱','未命名'))}</strong><br><a href='{str(row.get('網址','#'))}' target='_blank' style='color:#60a5fa;'>🔗 官方傳送門</a></div>", unsafe_allow_html=True)
                 c_col1, c_col2, c_col3 = st.columns([2, 1, 1])
-                
-                progress_ratio = min(max(r_done / r_total, 0.0), 1.0)
-                
-                with c_col1: st.progress(progress_ratio)
+                with c_col1: st.progress(min(max(r_done / r_total, 0.0), 1.0))
                 with c_col2: st.write(f"📈 {int(r_done)} / {int(r_total)} 集")
                 with c_col3:
                     if st.button(f"➕ 第 {int(r_done) + 1} 集", key=f"inc_{idx}") and r_done < r_total:
@@ -539,7 +603,7 @@ else:
                 st.markdown("---")
 
     # ------------------------------------------
-    # Tab 4: 🎁 願望兌換
+    # Tab 4: 🎁 願望兌換 (完全動態資料編輯驅動)
     # ------------------------------------------
     with tab4:
         st.markdown("## 🎁 願望兌換所")
@@ -548,32 +612,20 @@ else:
         if not df_rewards.empty and "獎勵名稱" in df_rewards.columns:
             for idx, row in df_rewards.iterrows():
                 r_name = row.get("獎勵名稱", "未命名")
-                raw_cost = row.get("所需未來幣", 0)
-                r_cost = 0 if pd.isna(raw_cost) else int(float(raw_cost))
+                r_cost = 0 if pd.isna(row.get("所需未來幣")) else int(float(row.get("所需未來幣")))
                 
                 with st.container():
-                    st.markdown(f"""
-                    <div style="background-color: #1e293b; padding: 20px; border-radius: 10px; border-left: 5px solid #f59e0b; margin-bottom: 15px;">
-                        <h3 style="color: #fcd34d; margin-top: 0;">{r_name}</h3>
-                        <p style="color: #94a3b8; font-size: 16px;">所需花費：<strong style="color: #fbbf24; font-size: 20px;">{r_cost} 🪙</strong></p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
+                    st.markdown(f"<div style='background-color:#1e293b; padding:20px; border-radius:10px; border-left:5px solid #f59e0b; margin-bottom:15px;'><h3 style='color:#fcd34d; margin-top:0;'>{r_name}</h3><p style='color:#94a3b8; font-size:16px;'>所需花費：<strong style='color:#fbbf24; font-size:20px;'>{r_cost} 🪙</strong></p></div>", unsafe_allow_html=True)
                     col_btn1, col_btn2 = st.columns(2)
-                    
                     with col_btn1:
                         if st.session_state.target_points == r_cost:
                             if st.button("❌ 取消鎖定", key=f"unlock_{idx}"):
                                 st.session_state.target_points = 200
-                                sync_to_cloud()
-                                st.toast("已取消願望鎖定！", icon="🔓")
-                                st.rerun()
+                                sync_to_cloud(); st.toast("已取消願望鎖定！", icon="🔓"); st.rerun()
                         else:
                             if st.button("🎯 設定為目標", key=f"set_{idx}"):
                                 st.session_state.target_points = r_cost
-                                sync_to_cloud()
-                                st.toast(f"已鎖定新目標：{r_name}！", icon="🎯")
-                                st.rerun()
+                                sync_to_cloud(); st.toast(f"已鎖定新目標：{r_name}！", icon="🎯"); st.rerun()
                                 
                     with col_btn2:
                         if st.session_state.target_points == r_cost:
@@ -582,44 +634,31 @@ else:
                                     st.session_state.coins -= r_cost
                                     st.session_state.target_points = 200 
                                     st.session_state.audio_trigger = 'level_up'
-                                    sync_to_cloud()
-                                    st.balloons()
+                                    sync_to_cloud(); st.balloons()
                                     st.success(f"兌換成功！請馬上截圖找媽媽領取：【{r_name}】")
-                                    time.sleep(2)
-                                    st.rerun()
+                                    time.sleep(2); st.rerun()
                             else:
                                 st.button("🔒 金幣還不夠喔", key=f"short_{idx}", disabled=True)
                 st.markdown("<br>", unsafe_allow_html=True)
         else:
-            st.warning("媽媽還沒有設定任何獎勵喔！趕快去找媽媽新增獎勵吧。")
+            st.warning("目前後台尚未設定任何願望清單喔。")
 
     # ------------------------------------------
-    # Tab 5: 知識挑戰
+    # Tab 5: 🦖 知識挑戰
     # ------------------------------------------
     with tab5:
         if current_badge: st.markdown(f"### 🎖️ 目前階級：{badge_display} (答對 {st.session_state.quiz_correct_total} 題)")
-        else: st.markdown(f"### 🔒 尚未獲得徽章 (答對 {st.session_state.quiz_correct_total} 題)")
-
         if st.session_state.daily_quiz_count >= 10:
             st.warning("⏳ 今天的體力用完囉，明天再來喔！")
         else:
-            try:
-                quiz_progress = st.session_state.daily_quiz_count / 10.0
-                if pd.isna(quiz_progress): quiz_progress = 0.0
-                quiz_progress = float(min(max(quiz_progress, 0.0), 1.0))
-            except:
-                quiz_progress = 0.0
-                
-            st.progress(quiz_progress)
+            q_progress = min(max(st.session_state.daily_quiz_count / 10.0, 0.0), 1.0)
+            st.progress(q_progress)
             
             if st.session_state.quiz_idx < len(df_quiz):
                 current_q = df_quiz.iloc[st.session_state.quiz_idx]
-                
-                raw_question = str(current_q.get('題目', ''))
-                if raw_question.strip() in ['nan', 'None', '']: display_question = "（⚠️ 題目好像在時空隧道迷路了！請媽媽確認一下喔！）"
-                else: display_question = raw_question
-                    
-                options = [str(current_q.get(col)) for col in ['選項A', '選項B', '選項C', '選項D'] if pd.notna(current_q.get(col)) and str(current_q.get(col)).strip() != 'nan']
+                raw_q = str(current_q.get('題目', ''))
+                display_question = "（⚠️ 題目漏失，請至後台確認）" if raw_q.strip() in ['nan','None',''] else raw_q
+                options = [str(current_q.get(col)) for col in ['選項A', '選項B', '選項C', '選項D'] if pd.notna(current_q.get(col)) and stroke(current_q.get(col)) != 'nan']
                 
                 st.markdown(f"#### ❓ 全球恐龍大百科第 {st.session_state.quiz_idx + 1} 題：{display_question}")
                 user_ans = st.empty().radio("請選擇答案：", options, key=f"q_{st.session_state.quiz_idx}")
@@ -631,15 +670,12 @@ else:
                         st.toast("🎉 答對了！", icon="✅")
                     else:
                         st.session_state.audio_trigger = 'wrong'; st.toast("❌ 答錯囉！", icon="❌")
-                        
-                    if st.session_state.daily_quiz_count == 10:
-                        sync_to_cloud(); st.toast("☁️ 戰績已自動備份至雲端！", icon="☁️")
-                        
+                    if st.session_state.daily_quiz_count == 10: sync_to_cloud()
                     time.sleep(0.5); st.rerun()
             else: st.success("🏆 全數通關！請通知媽媽擴充題目吧！")
 
     # ------------------------------------------
-    # Tab 6: 媽媽後台 
+    # Tab 6: ⚙️ 媽媽後台 (資料與安全性雙軌鎖定)
     # ------------------------------------------
     if tab6 is not None:
         with tab6:
@@ -650,11 +686,12 @@ else:
             st.markdown("---")
             st.markdown("### 🎁 雲端願望兌換所編輯器 (rewards)")
             edited_rewards_df = st.data_editor(df_rewards, use_container_width=True, num_rows="dynamic", key="rewards_editor")
-            if st.button("💾 儲存並覆寫願望清單"): conn.update(worksheet=WS_REWARDS, data=edited_rewards_df); st.cache_data.clear(); st.toast("🎉 願望清單已建立/覆寫！", icon="✅")
+            if st.button("💾 儲存並覆寫願望清單"): 
+                conn.update(worksheet=WS_REWARDS, data=edited_rewards_df); st.cache_data.clear(); st.toast("🎉 願望清單已同步覆寫！", icon="✅")
 
             st.markdown("---")
             st.markdown("### 🗺️ 雲端地圖站點預覽 (sites 唯讀鎖定)")
-            st.info("💡 為了避免地圖經緯度與排序格式錯誤導致系統崩潰，【🗺️ 大富翁地圖站點】的編輯功能已被安全鎖定。請直接前往 Google Sheets 雲端資料庫的 `sites` 分頁進行維護與新增。")
+            st.info("💡 為了避免格式錯誤，地圖站點已被安全鎖定。請直接前往 Google Sheets 資料庫的 `sites` 分頁進行維護。")
             st.dataframe(df_sites, use_container_width=True, hide_index=True)
 
             st.markdown("---")
@@ -673,7 +710,7 @@ else:
             if st.button("💾 儲存並覆寫題庫"): conn.update(worksheet=WS_QUIZ, data=edited_quiz_df); st.cache_data.clear(); st.toast("🎉 題庫已覆寫！", icon="✅")
 
 # ==========================================
-# 8. 音效引擎
+# 8. 全域音效引導引擎
 # ==========================================
 def load_audio_b64(file_name):
     if os.path.exists(file_name):
