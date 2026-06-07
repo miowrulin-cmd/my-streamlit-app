@@ -495,7 +495,7 @@ else:
                 st.success("✅ 今天的魔法挑戰已經成功囉！")
             else:
                 timer_placeholder = st.empty()
-                if st.button("🚀 啟怒魔法沙漏"):
+                if st.button("🚀 啟動魔法沙漏"):
                     for t in range(15*60, -1, -1):
                         mins, secs = divmod(t, 60)
                         timer_placeholder.markdown(f"<h2 style='text-align: center; color: #ef4444;'>⏳ 剩餘魔法時間：`{mins:02d}:{secs:02d}`</h2>", unsafe_allow_html=True)
