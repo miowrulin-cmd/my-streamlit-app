@@ -14,7 +14,6 @@ if st.query_params.get("magic_timer_done") == "true":
         st.session_state.daily_timer_done = True
         st.session_state.audio_trigger = 'coin'
     st.query_params.clear()  # 瞬間抹除網址參數，防止重新整理刷幣
-    # 延遲重新載入交給後續流程處理，此處不單獨阻塞
 
 # ==========================================
 # 0.1 環境變數切換開關 (全自動偵測版)
@@ -101,7 +100,7 @@ if 'is_authenticated' not in st.session_state:
     st.session_state.is_authenticated = False
 
 if not st.session_state.is_authenticated:
-    st.markdown("<h1 style='text-align: center; color: #3b82f6; margin-top: 50px;'>🦖 澳洲恐龍特派員總部 - 安全驗證</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #3b82f6; margin-top: 50px;'>🦖 恐龍特派員總部 - 安全驗證</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<div style='background-color: #1e293b; padding: 30px; border-radius: 15px; border: 2px solid #64748b; box-shadow: 0 10px 25px rgba(0,0,0,0.5);'>", unsafe_allow_html=True)
@@ -123,7 +122,7 @@ if not st.session_state.is_authenticated:
 # ==========================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 🎯【規格升級】：只保留您指定的 6 項願望作為底層預設資產
+# 🎯【規格純化】：只保留您指定的 6 項高價值願望
 DEFAULT_REWARDS_ASSETS = [
     {"獎勵名稱": "恐龍電影或紀錄片", "所需未來幣": 80},
     {"獎勵名稱": "高雄科工館3D電影", "所需未來幣": 120},
@@ -167,14 +166,12 @@ if not df_coins.empty and "使用者" in df_coins.columns:
     user_rows = df_coins[df_coins["使用者"] == st.session_state.logged_in_user]
     if not user_rows.empty: user_row_idx = user_rows.index[0]
 
-# 記憶體變數初始化防護
+# 🎯【語法修正防線】：徹底修復 line 175 語法截斷錯誤，並防禦 Schema Drift 
 if 'coins' not in st.session_state:
     st.session_state.coins = int(df_coins.loc[user_row_idx, "coins"]) if not df_coins.empty and len(df_coins) > user_row_idx and "coins" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "coins"]) else 0
     st.session_state.target_points = int(df_coins.loc[user_row_idx, "target_points"]) if not df_coins.empty and len(df_coins) > user_row_idx and "target_points" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "target_points"]) else 200
     st.session_state.dino_lat = float(df_coins.loc[user_row_idx, "dino_lat"]) if not df_coins.empty and len(df_coins) > user_row_idx and "dino_lat" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "dino_lat"]) else 0.0
-    st.session_state.dino_lon = float(df_coins.loc[user_row_idx, "dino_lon"]) if not df_coins.empty department else 0.0
-    if not df_coins.empty and len(df_coins) > user_row_idx and "dino_lon" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "dino_lon"]):
-        st.session_state.dino_lon = float(df_coins.loc[user_row_idx, "dino_lon"])
+    st.session_state.dino_lon = float(df_coins.loc[user_row_idx, "dino_lon"]) if not df_coins.empty and len(df_coins) > user_row_idx and "dino_lon" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "dino_lon"]) else 0.0
     st.session_state.quiz_correct_total = int(df_coins.loc[user_row_idx, "quiz_correct_total"]) if not df_coins.empty and len(df_coins) > user_row_idx and "quiz_correct_total" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "quiz_correct_total"]) else 0
     st.session_state.daily_quiz_count = int(df_coins.loc[user_row_idx, "daily_quiz_count"]) if not df_coins.empty and len(df_coins) > user_row_idx and "daily_quiz_count" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "daily_quiz_count"]) else 0
     st.session_state.last_quiz_date = str(df_coins.loc[user_row_idx, "last_quiz_date"]) if not df_coins.empty and len(df_coins) > user_row_idx and "last_quiz_date" in df_coins.columns and pd.notna(df_coins.loc[user_row_idx, "last_quiz_date"]) else time.strftime("%Y-%m-%d")
@@ -322,10 +319,9 @@ with st.sidebar:
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-# 🎯【前端更新】：重塑寫實重裝甲龍 SVG，分離肢體關節並注入前後交替踏步動畫
+# 🎯【視覺特寫】：重塑寫實重裝甲龍 SVG，分離肢體關節並注入前後交替踏步動畫
 def generate_map_html(start_lat, start_lon, end_lat, end_lon, is_animating):
     bases_js_code = "".join([f"L.marker([{coord[0]}, {coord[1]}], {{icon: baseIcon}}).addTo(map);" for coord in unlocked_coords])
-    
     walk_active_class = "walk-active" if is_animating else ""
     
     realistic_ankylosaurus_svg = f"""
@@ -458,7 +454,7 @@ else:
             
             is_animating = st.session_state.trigger_map_animation
             html_map = generate_map_html(start_lat, start_lon, target_lat, target_lon, is_animating)
-            st.components.v1.html(leaflet_html=html_map, height=450)
+            st.components.v1.html(html_map, height=450) # 🎯【修復】：刪除不合規的 leaflet_html 參數，回歸標準 html 傳遞
             
             if st.session_state.trigger_map_animation: st.session_state.trigger_map_animation = False
 
@@ -487,7 +483,7 @@ else:
             for i in range(6):
                 if f"task_amt_{i}" not in st.session_state: st.session_state[f"task_amt_{i}"] = 0
 
-            # 🎯【防呆升級】：限制只能使用上下箭頭增減級距數量
+            # 限制只能使用上下箭頭增減級距數量
             u1 = st.number_input("1. App單字闖關次數 (每 15 分鐘 = 1 幣)", min_value=0, step=1, key="task_amt_0")
             u2 = st.number_input("2. 英文教學影片看過次數 (每 15 分鐘 = 1 幣)", min_value=0, step=1, key="task_amt_1")
             u3 = st.number_input("3. 英文教學教材完成集數 (每 1 集 = 1 幣)", min_value=0, step=1, key="task_amt_2")
@@ -507,7 +503,7 @@ else:
                     time.sleep(0.5)
                     st.rerun()
                 else:
-                    st.warning("⚠️ 妳這次尚未調整任何任務單位的個數喔！")
+                    st.warning("⚠️ 妳這次尚未調整 any 任務單位的個數喔！")
                     
         with col2:
             st.markdown("""
@@ -559,7 +555,6 @@ else:
                                 clearInterval(loop);
                                 if (lockToken !== null) lockToken.release();
                                 
-                                // 原生音訊合成嗶嗶聲
                                 try {
                                     let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                                     let osc = audioCtx.createOscillator();
@@ -567,10 +562,8 @@ else:
                                     osc.connect(audioCtx.destination); osc.start(); setTimeout(() => osc.stop(), 1000);
                                 } catch(e){}
 
-                                // 原生系統級最高優先權強制攔截彈窗
                                 alert("⏳ 時間到了！專注完成！1 枚未來幣已成功召喚！");
                                 
-                                // 信號反向傳回後端管線
                                 const url = new URL(window.parent.location.href);
                                 url.searchParams.set("magic_timer_done", "true");
                                 window.parent.location.href = url.href;
@@ -658,7 +651,9 @@ else:
                 current_q = df_quiz.iloc[st.session_state.quiz_idx]
                 raw_q = str(current_q.get('題目', ''))
                 display_question = "（⚠️ 題目漏失，請至後台確認）" if raw_q.strip() in ['nan','None',''] else raw_q
-                options = [str(current_q.get(col)) for col in ['選項A', '選項B', '選項C', '選項D'] if pd.notna(current_q.get(col)) and stroke(current_q.get(col)) != 'nan']
+                
+                # 🎯【修復】：拆除不小心打錯的 stroke 常數，全面校正回標準 str 類別判定，摧毀隱形死角
+                options = [str(current_q.get(col)) for col in ['選項A', '選項B', '選項C', '選項D'] if pd.notna(current_q.get(col)) and str(current_q.get(col)).strip() != 'nan']
                 
                 st.markdown(f"#### ❓ 全球恐龍大百科第 {st.session_state.quiz_idx + 1} 題：{display_question}")
                 user_ans = st.empty().radio("請選擇答案：", options, key=f"q_{st.session_state.quiz_idx}")
