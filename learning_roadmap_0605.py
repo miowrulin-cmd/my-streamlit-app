@@ -139,7 +139,7 @@ def load_cloud_data_store():
         "milestones": conn.read(worksheet=WS_MILESTONES, ttl=0)
     }
     try: data["rewards"] = conn.read(worksheet=WS_REWARDS, ttl=0)
-    except: data["rewards"] = pd.DataFrame([{"獎勵名稱": "恐龍電影或紀錄片", "所需未來幣": 80}, {"獎勵名稱": "台中科工館恐龍展覽", "所需未來幣": 200}])
+    except: data["rewards"] = pd.DataFrame([{"獎勵名稱": "恐龍電影或紀錄片", "所需未來幣": 80},{"獎勵名稱": "台南左鎮化石園區", "所需未來幣": 150}, {"獎勵名稱": "台中科工館恐龍展覽", "所需未來幣": 200}])
     return data
 
 data_store = load_cloud_data_store()
